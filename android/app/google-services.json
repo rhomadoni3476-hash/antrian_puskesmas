@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "10381457932",
+    "project_id": "antrian-puskesmas-free",
+    "storage_bucket": "antrian-puskesmas-free.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10381457932:android:7ac6ce4fa8a6913d360c29",
+        "android_client_info": {
+          "package_name": "com.example.antrian_puskesmas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBC-1wVkp2Q-gcekCcatyloe9TgT3ir1eE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

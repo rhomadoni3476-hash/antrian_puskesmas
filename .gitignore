@@ -1,0 +1,9 @@
+.dart_tool/
+.gradle/
+.idea/
+build/
+android_backup/
+serviceAccountKey.json
+.DS_Store
+*.apk
+*.so
