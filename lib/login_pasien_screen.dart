@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:local_auth/local_auth.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'register_pasien_screen.dart';
-import 'home_nav_screen.dart';
 import 'lupa_password_screen.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
@@ -25,7 +23,6 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
   final LocalAuthentication _auth = LocalAuthentication();
   final _storage = const FlutterSecureStorage();
 
-  // Fungsi Login Manual yang sudah diperbaiki
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -36,33 +33,39 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
     }
 
     setState(() => _isLoading = true);
+
     try {
-      // 1. Panggil ApiService.login yang sekarang mengembalikan UserCredential
+      // 1. Firebase Auth menangani autentikasi
       UserCredential userCredential = await ApiService.login(email, password);
+      User? user = userCredential.user;
 
-      // 2. Ambil ID Token untuk kebutuhan API backend
-      String? idToken = await userCredential.user!.getIdToken();
-      if (idToken != null) {
-        await AuthService.saveToken(idToken);
-      }
+      // 2. Gunakan pengecekan null yang aman
+      if (user != null) {
+        // getIdToken mengembalikan String?, kita pastikan tidak null sebelum disimpan
+        String? token = await user.getIdToken(true);
 
-      // 3. Simpan data untuk biometrik
-      await _storage.write(key: 'user_email', value: email);
-      await _storage.write(key: 'user_password', value: password);
+        if (token != null) {
+          await AuthService.saveToken(token);
+          await _storage.write(key: 'user_email', value: email);
+          await _storage.write(key: 'user_password', value: password);
 
-      if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+          if (mounted) {
+            Navigator.pushNamedAndRemoveUntil(
+                context, '/home', (route) => false);
+          }
+        } else {
+          throw Exception("Token autentikasi gagal dihasilkan.");
+        }
       }
     } on FirebaseAuthException catch (e) {
-      _showMessage("Firebase Error: ${e.message}", Colors.red);
+      _showMessage("Auth Error: ${e.message}", Colors.red);
     } catch (e) {
-      _showMessage("Login Gagal: $e", Colors.red);
+      _showMessage("Login Gagal: Periksa koneksi Anda", Colors.red);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Fungsi Login Biometrik yang sudah disesuaikan
   Future<void> _authenticateBiometric() async {
     if (kIsWeb) return;
 
@@ -76,12 +79,6 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
     }
 
     try {
-      bool canCheck = await _auth.canCheckBiometrics;
-      if (!canCheck) {
-        _showMessage("Biometrik tidak tersedia", Colors.red);
-        return;
-      }
-
       bool didAuthenticate = await _auth.authenticate(
         localizedReason: 'Gunakan sidik jari/wajah untuk login',
         options:
@@ -90,32 +87,30 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
 
       if (didAuthenticate) {
         setState(() => _isLoading = true);
-        try {
-          // Login kembali menggunakan kredensial yang tersimpan
-          UserCredential userCredential =
-              await ApiService.login(email, password);
-          String? idToken = await userCredential.user!.getIdToken();
-          if (idToken != null) {
-            await AuthService.saveToken(idToken);
-          }
+        UserCredential userCredential = await ApiService.login(email, password);
+        User? user = userCredential.user;
 
-          if (mounted) {
-            Navigator.pushNamedAndRemoveUntil(
-                context, '/home', (route) => false);
+        if (user != null) {
+          String? token = await user.getIdToken(true);
+          if (token != null) {
+            await AuthService.saveToken(token);
+            if (mounted) {
+              Navigator.pushNamedAndRemoveUntil(
+                  context, '/home', (route) => false);
+            }
           }
-        } catch (e) {
-          _showMessage("Login biometrik gagal: $e", Colors.red);
-        } finally {
-          if (mounted) setState(() => _isLoading = false);
         }
       }
     } catch (e) {
-      debugPrint("Error biometrik: $e");
+      _showMessage("Biometrik gagal/dibatalkan", Colors.red);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showMessage(String message, Color color) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );

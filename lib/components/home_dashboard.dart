@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// Import Screen dependencies
 import '../health_tracker_screen.dart';
 import '../reward_screen.dart';
 import '../ringkasan_riwayat_screen.dart';
@@ -58,6 +60,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: "fab_survey",
         onPressed: () =>
             widget.navigateWithFade(context, const UsabilitySurveyScreen()),
         backgroundColor: Colors.indigo,
@@ -228,25 +231,21 @@ class _HomeDashboardState extends State<HomeDashboard>
 
   Widget _buildMenuCard(
       IconData icon, String title, Color color, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.grey.shade100)),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 10),
-            Text(title,
-                textAlign: TextAlign.center,
-                style:
-                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-          ]),
-        ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.grey.shade100)),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(height: 10),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ]),
       ),
     );
   }
@@ -340,11 +339,6 @@ class _HomeDashboardState extends State<HomeDashboard>
     );
   }
 
-  // (Salin bagian ini untuk mengganti file home_dashboard.dart Anda)
-
-// ... [Import tetap sama seperti sebelumnya]
-
-  // --- KONTEN LENGKAP INFO KESEHATAN ---
   Widget _buildInfoList(BuildContext context) {
     return SizedBox(
         height: 160,
@@ -361,7 +355,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       subtitle: "Tips",
                       themeColor: Colors.blue,
                       content:
-                          "Kesehatan bukan hanya tentang tidak sakit, tapi tentang bagaimana Anda merasa berenergi setiap hari. Mulailah hari Anda dengan segelas air putih, pilihlah makanan yang berwarna-warni di piring Anda, dan luangkan waktu 30 menit saja untuk bergerak. Tubuh Anda adalah satu-satunya tempat Anda tinggal seumur hidup, mari kita rawat dengan cinta mulai dari langkah kecil hari ini."))),
+                          "Kesehatan bukan hanya tentang tidak sakit..."))),
           _buildArticleCard(
               "Vaksinasi",
               "Perisai Kuat Anda Dan Keluarga Anda.",
@@ -373,8 +367,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       title: "Vaksinasi",
                       subtitle: "Jadwal",
                       themeColor: Colors.green,
-                      content:
-                          "Mencegah selalu lebih baik, lebih mudah, dan jauh lebih murah daripada mengobati. Vaksinasi adalah langkah cerdas untuk melindungi diri sendiri dan orang-orang tersayang dari risiko penyakit yang berbahaya. Jangan tunda jadwal imunisasi Anda! Melindungi diri adalah wujud tanggung jawab terbesar kita kepada keluarga."))),
+                      content: "Mencegah selalu lebih baik..."))),
           _buildArticleCard(
               "Manajemen",
               "Seni Mengelola Pikiran Dan Emosi.",
@@ -386,13 +379,9 @@ class _HomeDashboardState extends State<HomeDashboard>
                       title: "Manajemen",
                       subtitle: "Cara",
                       themeColor: Colors.purple,
-                      content:
-                          "Dunia mungkin bergerak cepat, tapi Anda berhak untuk tenang. Manajemen stres bukan berarti menghilangkan semua masalah, tapi belajar untuk bernapas di tengah badai. Cobalah teknik '5-4-3-2-1' saat merasa cemas: temukan 5 hal yang bisa dilihat, 4 hal yang bisa disentuh, 3 hal yang didengar, 2 hal yang dicium, dan 1 hal yang bisa dirasakan."))),
+                      content: "Dunia mungkin bergerak cepat..."))),
         ]));
   }
-
-// ... [Sisa fungsi lainnya seperti _buildMenuCard, _buildRatingCard, dsb]
-// Gunakan versi lengkap yang saya berikan sebelumnya untuk fungsi-fungsi pendukung tersebut.
 
   Widget _buildArticleCard(String title, String subtitle, IconData icon,
       Color color, VoidCallback onTap) {

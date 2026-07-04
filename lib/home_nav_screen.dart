@@ -12,7 +12,6 @@ import 'tele_konsultasi_screen.dart';
 import 'login_pasien_screen.dart';
 import 'input_rekam_medis_screen.dart';
 import 'admin_rekam_medis_screen.dart';
-import 'usability_survey_screen.dart';
 
 class HomeNavScreen extends StatefulWidget {
   const HomeNavScreen({super.key});
@@ -25,9 +24,7 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
   final User? _user = FirebaseAuth.instance.currentUser;
   final Color primaryColor = Colors.redAccent;
 
-  // Menggunakan Map untuk menyimpan data user sementara
-  Map<String, dynamic>? _userData;
-
+  // Navigasi dengan animasi fade
   void navigateWithFade(BuildContext context, Widget screen) {
     Navigator.of(context).push(PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
@@ -36,7 +33,7 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
             FadeTransition(opacity: anim, child: child)));
   }
 
-  // --- FUNGSI DARURAT ---
+  // Fungsi darurat
   Future<void> _kirimSinyalDarurat(BuildContext context) async {
     if (_user == null) return;
 
@@ -63,11 +60,10 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
     if (confirm != true) return;
 
     showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Colors.redAccent)),
-    );
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+            child: CircularProgressIndicator(color: Colors.redAccent)));
 
     try {
       await FirebaseFirestore.instance.collection('darurat').add({
@@ -75,7 +71,6 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
         'status': 'Butuh Bantuan',
         'timestamp': FieldValue.serverTimestamp()
       });
-
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -88,11 +83,9 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
     }
   }
 
-  Future<void> _onTabTapped(int index) async {
+  Future<void> _onTabTapped(int index, Map<String, dynamic>? userData) async {
     HapticFeedback.lightImpact();
-    // Proteksi: Hanya bisa akses menu Daftar (index 2) jika NIK ada
-    if (index == 2 &&
-        (_userData == null || (_userData!['nik'] ?? '').isEmpty)) {
+    if (index == 2 && (userData == null || (userData['nik'] ?? '').isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("Lengkapi profil NIK di Drawer sebelum mendaftar!"),
           backgroundColor: Colors.orange));
@@ -111,21 +104,21 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
           .doc(_user!.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.exists) {
-          _userData = snapshot.data!.data() as Map<String, dynamic>?;
-        }
-
-        // Tampilkan loading HANYA saat data benar-benar belum ada
-        if (_userData == null) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
 
-        final bool isAdmin = _userData?['role'] == 'admin';
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const Scaffold(
+              body: Center(child: Text("Profil tidak ditemukan.")));
+        }
+
+        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final bool isAdmin = userData['role'] == 'admin';
 
         final List<Widget> pages = [
-          HomeDashboard(
-              userData: _userData, navigateWithFade: navigateWithFade),
+          HomeDashboard(userData: userData, navigateWithFade: navigateWithFade),
           const TeleKonsultasiScreen(),
           const PendaftaranScreen(),
           const AntrianAktifScreen(),
@@ -143,7 +136,6 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
               if (isAdmin)
                 IconButton(
                   icon: const Icon(Icons.history_edu),
-                  tooltip: "Data Rekam Medis",
                   onPressed: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -151,21 +143,23 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
                 )
             ],
           ),
-          floatingActionButton: _buildFAB(isAdmin),
           drawer: HomeDrawer(
-              data: _userData,
+              data: userData,
               navigateWithFade: navigateWithFade,
               primaryColor: primaryColor),
           body: IndexedStack(index: _currentIndex, children: pages),
-          bottomNavigationBar: _buildBottomNavBar(),
+          floatingActionButton: _buildFAB(isAdmin, userData),
+          bottomNavigationBar: _buildBottomNavBar(userData),
         );
       },
     );
   }
 
-  Widget? _buildFAB(bool isAdmin) {
+  Widget? _buildFAB(bool isAdmin, Map<String, dynamic> userData) {
+    // Memberikan heroTag unik untuk mencegah error Hero Tag
     if (isAdmin) {
       return FloatingActionButton.extended(
+        heroTag: "fab_admin_input",
         backgroundColor: Colors.green,
         onPressed: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const InputRekamMedisScreen())),
@@ -174,6 +168,7 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
       );
     } else if (_currentIndex == 0) {
       return FloatingActionButton(
+        heroTag: "fab_pasien_darurat",
         backgroundColor: Colors.red,
         onPressed: () => _kirimSinyalDarurat(context),
         child: const Icon(Icons.emergency),
@@ -182,7 +177,7 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
     return null;
   }
 
-  Widget _buildBottomNavBar() {
+  Widget _buildBottomNavBar(Map<String, dynamic> userData) {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       decoration: BoxDecoration(
@@ -199,11 +194,9 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
           backgroundColor: Colors.transparent,
           type: BottomNavigationBarType.fixed,
           currentIndex: _currentIndex,
-          onTap: _onTabTapped,
+          onTap: (index) => _onTabTapped(index, userData),
           selectedItemColor: primaryColor,
           unselectedItemColor: Colors.grey,
-          showSelectedLabels: true,
-          showUnselectedLabels: true,
           items: const [
             BottomNavigationBarItem(
                 icon: Icon(Icons.home_filled), label: "Home"),
