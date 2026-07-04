@@ -1,7 +1,4 @@
 fastapi
 uvicorn
-sqlalchemy
-pydantic[email]
-passlib[bcrypt]
-python-jose[cryptography]
-python-multipart
+firebase-admin
+PyJWT
