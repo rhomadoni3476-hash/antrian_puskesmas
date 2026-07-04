@@ -4,7 +4,7 @@ import 'api_service.dart';
 class AntrianProvider extends ChangeNotifier {
   List _daftarPasien = [];
   bool _isLoading = false;
-  String? _errorMessage; // Menambahkan variabel pesan error
+  String? _errorMessage;
 
   List get daftarPasien => _daftarPasien;
   bool get isLoading => _isLoading;
@@ -19,27 +19,66 @@ class AntrianProvider extends ChangeNotifier {
     try {
       _daftarPasien = await ApiService.getRekamMedis();
     } catch (e) {
-      _errorMessage = "Gagal memuat data: $e";
+      _errorMessage = "Gagal memuat data: ${e.toString()}";
       debugPrint(_errorMessage);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   // 2. Update status antrian ke FastAPI
-  Future<void> updateStatusAntrian(int id, String newStatus) async {
+  // id diubah dari int menjadi String agar sesuai dengan Firestore Document ID
+  Future<bool> updateStatusAntrian(String id, String newStatus) async {
     try {
-      // Memanggil fungsi update dari ApiService
-      await ApiService.updateStatus(id, newStatus);
+      bool success = await ApiService.updateStatus(id, newStatus);
 
-      debugPrint("Status ID $id berhasil diupdate ke $newStatus");
-
-      // Refresh daftar setelah update agar UI sinkron
-      await fetchPasien();
+      if (success) {
+        debugPrint("Status ID $id berhasil diupdate ke $newStatus");
+        // Refresh daftar agar UI sinkron dengan database
+        await fetchPasien();
+        return true;
+      }
+      return false;
     } catch (e) {
-      debugPrint("Error saat mengupdate status ke server: $e");
-      // Anda bisa set _errorMessage di sini jika ingin ditampilkan ke user
+      _errorMessage = "Gagal update status: ${e.toString()}";
+      debugPrint(_errorMessage);
+      notifyListeners();
+      return false;
     }
+  }
+
+  // 3. Menghapus antrian
+  Future<bool> hapusAntrian(String id) async {
+    try {
+      bool success = await ApiService.hapusRekamMedis(id);
+      if (success) {
+        await fetchPasien();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      _errorMessage = "Gagal menghapus data: ${e.toString()}";
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // 4. Tambah antrian (opsional, jika Anda membutuhkannya)
+  Future<bool> tambahAntrian(Map<String, dynamic> data) async {
+    try {
+      await ApiService.tambahRekamMedis(data);
+      await fetchPasien();
+      return true;
+    } catch (e) {
+      _errorMessage = "Gagal menambah data: ${e.toString()}";
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
   }
 }

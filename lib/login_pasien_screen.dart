@@ -25,7 +25,7 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
   final LocalAuthentication _auth = LocalAuthentication();
   final _storage = const FlutterSecureStorage();
 
-  // Fungsi Login Manual
+  // Fungsi Login Manual yang sudah diperbaiki
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -37,14 +37,14 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // 1. Login Firebase
-      await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: email, password: password);
+      // 1. Panggil ApiService.login yang sekarang mengembalikan UserCredential
+      UserCredential userCredential = await ApiService.login(email, password);
 
-      // 2. Login ke FastAPI & Simpan Token
-      // Pastikan fungsi ApiService.login bersifat static
-      String token = await ApiService.login(email, password);
-      await AuthService.saveToken(token);
+      // 2. Ambil ID Token untuk kebutuhan API backend
+      String? idToken = await userCredential.user!.getIdToken();
+      if (idToken != null) {
+        await AuthService.saveToken(idToken);
+      }
 
       // 3. Simpan data untuk biometrik
       await _storage.write(key: 'user_email', value: email);
@@ -62,7 +62,7 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
     }
   }
 
-  // Fungsi Login Biometrik
+  // Fungsi Login Biometrik yang sudah disesuaikan
   Future<void> _authenticateBiometric() async {
     if (kIsWeb) return;
 
@@ -76,11 +76,9 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
     }
 
     try {
-      bool isSupported = await _auth.isDeviceSupported();
       bool canCheck = await _auth.canCheckBiometrics;
-
-      if (!isSupported && !canCheck) {
-        _showMessage("Biometrik tidak tersedia di perangkat ini", Colors.red);
+      if (!canCheck) {
+        _showMessage("Biometrik tidak tersedia", Colors.red);
         return;
       }
 
@@ -93,10 +91,13 @@ class _LoginPasienScreenState extends State<LoginPasienScreen> {
       if (didAuthenticate) {
         setState(() => _isLoading = true);
         try {
-          await FirebaseAuth.instance
-              .signInWithEmailAndPassword(email: email, password: password);
-          String token = await ApiService.login(email, password);
-          await AuthService.saveToken(token);
+          // Login kembali menggunakan kredensial yang tersimpan
+          UserCredential userCredential =
+              await ApiService.login(email, password);
+          String? idToken = await userCredential.user!.getIdToken();
+          if (idToken != null) {
+            await AuthService.saveToken(idToken);
+          }
 
           if (mounted) {
             Navigator.pushNamedAndRemoveUntil(

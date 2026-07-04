@@ -9,7 +9,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'privacy_provider.dart';
 import 'tiket_antrian_screen.dart';
-import 'api_service.dart'; // Pastikan file ini ada
+import 'api_service.dart';
+
+// Ganti dengan domain Railway Anda yang sudah dideploy
+const String BASE_URL = "https://antrianpuskesmas-production.up.railway.app";
 
 class PendaftaranScreen extends StatefulWidget {
   final String? keluhan;
@@ -25,9 +28,7 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
   final TextEditingController _namaController = TextEditingController();
   final TextEditingController _keluhanController = TextEditingController();
 
-  // Variabel lokal untuk menyimpan nama asli agar tidak hilang saat masking
   String _namaAsli = "";
-
   String? _selectedPoli;
   bool _isLoading = false;
   bool _isAutoDetected = false;
@@ -66,8 +67,9 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
   Future<void> _deteksiPoliViaFastAPI(String keluhan) async {
     if (_isManuallySelected || keluhan.length < 5) return;
     try {
+      // Menggunakan URL Railway yang stabil
       final response = await http.post(
-        Uri.parse('http://192.168.100.25:8000/deteksi-poli'),
+        Uri.parse('$BASE_URL/deteksi-poli'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'keluhan': keluhan}),
       );
@@ -81,7 +83,7 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
         }
       }
     } catch (e) {
-      debugPrint("FastAPI tidak merespon: $e");
+      debugPrint("Gagal terhubung ke server API: $e");
     }
   }
 
@@ -118,7 +120,7 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Kirim ke FastAPI
+      // 1. Kirim ke FastAPI via ApiService
       final dataBackend = {
         'nik': _nikController.text,
         'nama_pasien': _namaAsli,
@@ -229,7 +231,6 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
                               prefixIcon: Icon(Icons.badge))),
                       const SizedBox(height: 15),
                       Consumer<PrivacyProvider>(builder: (context, p, _) {
-                        // Update controller teks berdasarkan mode privasi
                         _namaController.text =
                             p.isPrivate && _namaAsli.isNotEmpty
                                 ? "${_namaAsli[0]}****"

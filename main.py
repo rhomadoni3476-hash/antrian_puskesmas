@@ -1,23 +1,16 @@
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-import jwt
-from datetime import datetime, timedelta, timezone
 import os
 import json
-
-# Firebase
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth
 
 # --- Konfigurasi ---
-SECRET_KEY = os.getenv("SECRET_KEY", "puskesmas-digital-secret-key-yang-sangat-panjang")
-ALGORITHM = "HS256"
 FIREBASE_JSON_CONTENT = os.getenv("FIREBASE_JSON_CONTENT")
 
-app = FastAPI(title="Puskesmas Digital API", version="1.2.0")
+app = FastAPI(title="Puskesmas Digital API - Full Integrated", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,61 +19,104 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Inisialisasi Firebase (Aman untuk Cloud) ---
-def get_firebase_db():
+# --- Inisialisasi Firebase ---
+def initialize_firebase():
     if not firebase_admin._apps:
         try:
             if FIREBASE_JSON_CONTENT:
-                # Menggunakan JSON dari Environment Variable (Railway)
                 cred_dict = json.loads(FIREBASE_JSON_CONTENT)
                 cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
             else:
-                # Fallback ke file lokal jika sedang testing di laptop
                 cred = credentials.Certificate('firebase.json')
-            firebase_admin.initialize_app(cred)
+                firebase_admin.initialize_app(cred)
+            print("Firebase terinisialisasi dengan sukses.")
         except Exception as e:
-            print(f"Error Firebase: {e}")
-            return None
-    return firestore.client()
+            print(f"Gagal inisialisasi Firebase: {e}")
 
-# --- Auth Security ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+initialize_firebase()
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+# --- Auth Security (Firebase Token) ---
+security = HTTPBearer()
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise HTTPException(status_code=401, detail="Token tidak valid")
-        return username
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Token tidak valid atau kedaluwarsa")
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token tidak valid: {str(e)}",
+        )
+
+# --- Model Data ---
+class RekamMedis(BaseModel):
+    nik: str
+    nama_pasien: str
+    keluhan: str
+    status: str
+
+class UpdateStatusRequest(BaseModel):
+    status: str
 
 # --- Endpoints ---
-@app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    if form_data.username != "admin" or form_data.password != "admin123":
-        raise HTTPException(status_code=400, detail="Username atau password salah")
-    
-    expire = datetime.now(timezone.utc) + timedelta(minutes=120)
-    token = jwt.encode({"sub": form_data.username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"access_token": token, "token_type": "bearer"}
 
+@app.get("/")
+def read_root():
+    return {"message": "Puskesmas Digital API is Running Securely"}
+
+# 1. Statistik SUS
 @app.get("/api/sus-statistics")
-def get_sus_statistics(current_user: str = Depends(get_current_user)):
-    db = get_firebase_db()
-    if not db:
-        raise HTTPException(status_code=503, detail="Koneksi Firebase gagal diinisialisasi")
-    
+def get_sus_statistics(user_data: dict = Depends(get_current_user)):
+    db = firestore.client()
     try:
         docs = db.collection("sus_results").stream()
         scores = [d.to_dict().get("final_score", 0) for d in docs]
         avg = sum(scores) / len(scores) if scores else 0
         return {
-            "rata_rata_sus": round(avg, 2),
-            "total_responden": len(scores),
-            "kategori": "Excellent" if avg > 80 else "Good" if avg > 68 else "Marginal/Poor"
+            "status": "success",
+            "data": {"rata_rata_sus": round(avg, 2), "total_responden": len(scores)}
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# 2. Daftar Rekam Medis
+@app.get("/daftar-rekam-medis")
+def get_daftar_rekam_medis(user_data: dict = Depends(get_current_user)):
+    db = firestore.client()
+    try:
+        docs = db.collection("rekam_medis").stream()
+        return [{"id": d.id, **d.to_dict()} for d in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 3. Tambah Rekam Medis
+@app.post("/tambah-rekam-medis")
+def tambah_rekam_medis(data: RekamMedis, user_data: dict = Depends(get_current_user)):
+    db = firestore.client()
+    try:
+        new_doc = db.collection("rekam_medis").add(data.dict())
+        return {"status": "success", "id": new_doc[1].id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 4. Update Status
+@app.put("/update-status/{id}")
+def update_status(id: str, request: UpdateStatusRequest, user_data: dict = Depends(get_current_user)):
+    db = firestore.client()
+    try:
+        db.collection("rekam_medis").document(id).update({"status": request.status})
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal update: {str(e)}")
+
+# 5. Hapus Rekam Medis
+@app.delete("/hapus-rekam-medis/{id}")
+def hapus_rekam_medis(id: str, user_data: dict = Depends(get_current_user)):
+    db = firestore.client()
+    try:
+        db.collection("rekam_medis").document(id).delete()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
