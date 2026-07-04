@@ -7,3 +7,4 @@ serviceAccountKey.json
 .DS_Store
 *.apk
 *.so
+__pycache__/
