@@ -3,3 +3,4 @@ uvicorn
 firebase-admin
 PyJWT
 sqlalchemy
+python-multipart
