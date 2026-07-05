@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,7 +12,6 @@ import 'privacy_provider.dart';
 import 'tiket_antrian_screen.dart';
 import 'api_service.dart';
 
-// Ganti dengan domain Railway Anda yang sudah dideploy
 const String BASE_URL = "https://antrianpuskesmas-production.up.railway.app";
 
 class PendaftaranScreen extends StatefulWidget {
@@ -67,12 +67,14 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
   Future<void> _deteksiPoliViaFastAPI(String keluhan) async {
     if (_isManuallySelected || keluhan.length < 5) return;
     try {
-      // Menggunakan URL Railway yang stabil
-      final response = await http.post(
-        Uri.parse('$BASE_URL/deteksi-poli'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'keluhan': keluhan}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$BASE_URL/deteksi-poli'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'keluhan': keluhan}),
+          )
+          .timeout(const Duration(seconds: 8));
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (mounted) {
@@ -83,24 +85,29 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
         }
       }
     } catch (e) {
-      debugPrint("Gagal terhubung ke server API: $e");
+      debugPrint("Gagal deteksi poli: $e");
     }
   }
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (doc.exists && mounted) {
-        final data = doc.data() as Map<String, dynamic>;
-        setState(() {
-          _nikController.text = data['nik'] ?? '';
-          _namaAsli = data['nama'] ?? '';
-          _namaController.text = _namaAsli;
-        });
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get()
+            .timeout(const Duration(seconds: 5));
+        if (doc.exists && mounted) {
+          final data = doc.data() as Map<String, dynamic>;
+          setState(() {
+            _nikController.text = data['nik'] ?? '';
+            _namaAsli = data['nama'] ?? '';
+            _namaController.text = _namaAsli;
+          });
+        }
+      } catch (e) {
+        debugPrint("Error load user: $e");
       }
     }
   }
@@ -120,16 +127,21 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Kirim ke FastAPI via ApiService
+      // BAGIAN PENTING: Jika API Service Anda memicu error Admin,
+      // Anda harus memverifikasi apakah endpoint API tersebut memang mewajibkan login Admin.
+      // Jika ya, hapus baris `await ApiService.tambahRekamMedis(dataBackend)`
+      // atau perbaiki backend untuk mengizinkan user biasa.
       final dataBackend = {
         'nik': _nikController.text,
         'nama_pasien': _namaAsli,
         'keluhan': _keluhanController.text,
         'status': 'Menunggu',
       };
-      await ApiService.tambahRekamMedis(dataBackend);
 
-      // 2. Kirim ke Firebase
+      // Jika Anda yakin error berasal dari sini, comment baris ini untuk testing:
+      await ApiService.tambahRekamMedis(dataBackend)
+          .timeout(const Duration(seconds: 10));
+
       final User? user = FirebaseAuth.instance.currentUser;
       String token = !kIsWeb
           ? (await FirebaseMessaging.instance.getToken() ?? "FCM_UNAVAILABLE")
@@ -171,8 +183,9 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Gagal mendaftar: $e")));
+        // Debugging: Kita tampilkan error yang lebih detail
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Gagal mendaftar: ${e.toString()}")));
       }
     }
   }
@@ -180,98 +193,129 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("Pendaftaran"),
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
+        title: Text("Pendaftaran Antrian",
+            style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600, color: Colors.black87)),
+        backgroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
         actions: [
           Consumer<PrivacyProvider>(
               builder: (context, p, _) => IconButton(
                     icon: Icon(
-                        p.isPrivate ? Icons.visibility_off : Icons.visibility),
+                        p.isPrivate
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.black87),
                     onPressed: () => p.togglePrivacy(),
                   )),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-            gradient: LinearGradient(
-                colors: [Color(0xFFFFF1F0), Color(0xFFFFCDD2)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter)),
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.redAccent))
-            : ListView(padding: const EdgeInsets.all(20), children: [
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.redAccent))
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                if (!_isPuskesmasOpen)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16)),
+                    child: Text(
+                        "Puskesmas sedang tutup (Operasional: 08:00 - 16:00)",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                            color: Colors.red, fontWeight: FontWeight.bold)),
+                  ),
                 Card(
-                  elevation: 4,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                      borderRadius: BorderRadius.circular(24),
+                      side: BorderSide(color: Colors.grey.shade200)),
                   child: Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(24),
                     child: Column(children: [
-                      if (!_isPuskesmasOpen)
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          margin: const EdgeInsets.only(bottom: 15),
-                          decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: const Text("Puskesmas tutup saat ini.",
-                              style: TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      TextFormField(
-                          controller: _nikController,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                              labelText: "NIK",
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.badge))),
-                      const SizedBox(height: 15),
+                      _buildModernInput(_nikController, "NIK Pasien",
+                          Icons.badge_outlined, true),
+                      const SizedBox(height: 16),
                       Consumer<PrivacyProvider>(builder: (context, p, _) {
                         _namaController.text =
                             p.isPrivate && _namaAsli.isNotEmpty
                                 ? "${_namaAsli[0]}****"
                                 : _namaAsli;
-
-                        return TextFormField(
-                            controller: _namaController,
-                            readOnly: true,
-                            decoration: const InputDecoration(
-                                labelText: "Nama Lengkap",
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.person)));
+                        return _buildModernInput(_namaController,
+                            "Nama Lengkap", Icons.person_outline, true);
                       }),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 16),
                       _buildPoliDropdown(),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: _keluhanController,
                         onChanged: (val) => _deteksiPoliViaFastAPI(val),
-                        decoration: const InputDecoration(
-                            labelText: "Keluhan",
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.medical_services)),
                         maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: "Keluhan",
+                          hintText: "Jelaskan keluhan Anda...",
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none),
+                          prefixIcon: const Icon(
+                              Icons.medical_services_outlined,
+                              color: Colors.redAccent),
+                        ),
                       ),
-                      const SizedBox(height: 25),
-                      FilledButton(
-                        onPressed: _isPuskesmasOpen ? _submitPendaftaran : null,
-                        style: FilledButton.styleFrom(
-                            backgroundColor: _isPuskesmasOpen
-                                ? Colors.redAccent
-                                : Colors.grey,
-                            minimumSize: const Size(double.infinity, 50)),
-                        child: Text(_isPuskesmasOpen
-                            ? "DAFTAR SEKARANG"
-                            : "PUSKESMAS TUTUP"),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        height: 55,
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: (_isPuskesmasOpen && _selectedPoli != null)
+                              ? _submitPendaftaran
+                              : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor:
+                                (_isPuskesmasOpen && _selectedPoli != null)
+                                    ? Colors.redAccent
+                                    : Colors.grey,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: Text(
+                              _isPuskesmasOpen
+                                  ? "DAFTAR SEKARANG"
+                                  : "PUSKESMAS TUTUP",
+                              style: GoogleFonts.poppins(
+                                  fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
                       ),
                     ]),
                   ),
                 ),
-              ]),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildModernInput(TextEditingController controller, String label,
+      IconData icon, bool isReadOnly) {
+    return TextFormField(
+      controller: controller,
+      readOnly: isReadOnly,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none),
+        prefixIcon: Icon(icon, color: Colors.redAccent),
       ),
     );
   }
@@ -283,10 +327,15 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
           .where('status', isEqualTo: 'buka')
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const LinearProgressIndicator();
-        final items = snapshot.data!.docs
-            .map((d) => (d.data() as Map)['nama_poli'] as String)
-            .toList();
+        if (snapshot.connectionState == ConnectionState.waiting)
+          return const LinearProgressIndicator();
+        final items = snapshot.hasData
+            ? snapshot.data!.docs
+                .map((d) =>
+                    (d.data() as Map<String, dynamic>)['nama_poli'] as String)
+                .toList()
+            : <String>[];
+
         return DropdownButtonFormField<String>(
           value: items.contains(_selectedPoli) ? _selectedPoli : null,
           items: items
@@ -296,10 +345,16 @@ class _PendaftaranScreenState extends State<PendaftaranScreen> {
             _selectedPoli = val;
             _isManuallySelected = true;
           }),
-          decoration: const InputDecoration(
-              labelText: "Pilih Poli Tujuan",
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.local_hospital)),
+          decoration: InputDecoration(
+            labelText: "Pilih Poli Tujuan",
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none),
+            prefixIcon: const Icon(Icons.local_hospital_outlined,
+                color: Colors.redAccent),
+          ),
         );
       },
     );

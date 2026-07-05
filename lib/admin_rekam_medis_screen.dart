@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Penting untuk Auth
 import 'api_service.dart';
 
 class AdminRekamMedisScreen extends StatefulWidget {
@@ -23,10 +24,17 @@ class _AdminRekamMedisScreenState extends State<AdminRekamMedisScreen> {
     _refreshData();
   }
 
+  // Fungsi Refresh Data dengan Penanganan Token Auth
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
     try {
+      // Pastikan User sudah login sebelum memanggil API
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw "User tidak terautentikasi";
+
+      // Panggil API (Pastikan ApiService di backend/frontend sudah menerima token)
       final data = await ApiService.getRekamMedis();
+
       setState(() {
         _allData = data;
         _filteredData = data;
@@ -36,7 +44,10 @@ class _AdminRekamMedisScreenState extends State<AdminRekamMedisScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gagal memuat data: ${e.toString()}")),
+          SnackBar(
+            content: Text("Error: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -62,17 +73,18 @@ class _AdminRekamMedisScreenState extends State<AdminRekamMedisScreen> {
             return pw.Column(children: [
               pw.Header(
                   level: 0, child: pw.Text("Laporan Rekam Medis Puskesmas")),
+              pw.SizedBox(height: 20),
               pw.Table.fromTextArray(
                 context: context,
-                data: [
-                  ['Nama', 'NIK', 'Status', 'Keluhan'],
-                  ..._filteredData.map((e) => [
-                        e['nama_pasien'],
-                        e['nik'].toString(),
-                        e['status'],
-                        e['keluhan']
-                      ])
-                ],
+                headers: ['Nama', 'NIK', 'Status', 'Keluhan'],
+                data: _filteredData
+                    .map((e) => [
+                          e['nama_pasien'],
+                          e['nik'].toString(),
+                          e['status'],
+                          e['keluhan']
+                        ])
+                    .toList(),
               ),
             ]);
           }),
@@ -95,6 +107,7 @@ class _AdminRekamMedisScreenState extends State<AdminRekamMedisScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
+                // Panggil endpoint update status di FastAPI
                 await ApiService.updateStatus(item['id'], "Selesai");
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

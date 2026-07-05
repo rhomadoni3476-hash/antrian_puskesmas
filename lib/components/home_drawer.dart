@@ -17,7 +17,8 @@ import '../daftar_stok_screen.dart';
 import '../input_stok_masuk_screen.dart';
 import '../log_transaksi_screen.dart';
 import '../login_pasien_screen.dart';
-import '../usability_survey_screen.dart'; // <--- IMPORT SURVEI DITAMBAHKAN
+import '../usability_survey_screen.dart';
+import '../riwayat_antrian_screen.dart';
 
 class HomeDrawer extends StatelessWidget {
   final Map<String, dynamic>? data;
@@ -38,29 +39,62 @@ class HomeDrawer extends StatelessWidget {
     final bool isDokter = role == 'dokter';
 
     return Drawer(
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(color: primaryColor),
-            accountName: Text(data?['nama'] ?? "Pasien",
-                style: GoogleFonts.poppins(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
-            accountEmail: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(10)),
-              child: Text("Poin: ${data?['poin'] ?? 0}",
-                  style: const TextStyle(color: Colors.white)),
+          // Header Gradient Modern
+          Container(
+            height: 200,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius:
+                  const BorderRadius.only(topRight: Radius.circular(30)),
             ),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, size: 40, color: Colors.redAccent),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                      color: Colors.white, shape: BoxShape.circle),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.redAccent,
+                    child: Icon(Icons.person, size: 35, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  data?['nama'] ?? "Pasien",
+                  style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white),
+                ),
+                Text(
+                  "Poin: ${data?['poin'] ?? 0}",
+                  style:
+                      GoogleFonts.poppins(fontSize: 12, color: Colors.white70),
+                ),
+              ],
             ),
           ),
+
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 15, left: 12, right: 12),
               children: [
                 _buildDrawerItem(context, Icons.edit_rounded, "Edit Profil",
                     const EditProfileScreen()),
@@ -68,18 +102,19 @@ class HomeDrawer extends StatelessWidget {
                     "Reward Poin", const RewardScreen()),
                 _buildDrawerItem(context, Icons.medical_information_rounded,
                     "Rekam Medis Digital", const RingkasanRiwayatScreen()),
-                const Divider(indent: 20, endIndent: 20),
+                _buildDrawerItem(context, Icons.history_edu_rounded,
+                    "Riwayat Antrian", const RiwayatAntrianScreen()),
+                const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider()),
                 _buildDrawerItem(context, Icons.monitor_heart_rounded,
                     "Input Data Kesehatan", const HealthTrackerScreen()),
                 _buildDrawerItem(context, Icons.history_rounded,
                     "Riwayat Kesehatan", const RiwayatKesehatanScreen()),
-                _buildDrawerItem(context, Icons.help_outline_rounded,
-                    "Pusat Bantuan / FAQ", const FaqScreen()),
-
-                // --- MENU SURVEY SUS ---
                 _buildDrawerItem(context, Icons.star_rate_rounded,
                     "Survei Kepuasan (SUS)", const UsabilitySurveyScreen()),
-
+                _buildDrawerItem(context, Icons.help_outline_rounded,
+                    "Pusat Bantuan / FAQ", const FaqScreen()),
                 Consumer<ThemeProvider>(
                   builder: (context, themeProvider, child) {
                     return SwitchListTile(
@@ -95,36 +130,53 @@ class HomeDrawer extends StatelessWidget {
                     );
                   },
                 ),
-
                 if (isAdmin || isDokter) ...[
                   const Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      child: Text("ADMIN & DOKTER",
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey))),
+                    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                    child: Text("MANAJEMEN SISTEM",
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey)),
+                  ),
                   if (isDokter)
-                    _buildDrawerItem(context, Icons.medical_services_rounded,
-                        "Dashboard Dokter", const DashboardDokterScreen()),
+                    _buildAdminItem(
+                        context,
+                        Icons.medical_services_rounded,
+                        "Dashboard Dokter",
+                        const DashboardDokterScreen(),
+                        Colors.teal),
                   if (isAdmin) ...[
-                    _buildDrawerItem(
+                    _buildAdminItem(
                         context,
                         Icons.admin_panel_settings_rounded,
                         "Dashboard Admin",
-                        const AdminDashboardScreen()),
-                    _buildDrawerItem(context, Icons.inventory_2_rounded,
-                        "Manajemen Stok Obat", const DaftarStokScreen()),
-                    _buildDrawerItem(context, Icons.add_box_rounded,
-                        "Input Stok Masuk", const InputStokMasukScreen()),
-                    _buildDrawerItem(context, Icons.history_edu_rounded,
-                        "Log Transaksi Obat", const LogTransaksiScreen()),
+                        const AdminDashboardScreen(),
+                        Colors.purple),
+                    _buildAdminItem(
+                        context,
+                        Icons.inventory_2_rounded,
+                        "Manajemen Stok Obat",
+                        const DaftarStokScreen(),
+                        Colors.orange),
+                    _buildAdminItem(
+                        context,
+                        Icons.add_box_rounded,
+                        "Input Stok Masuk",
+                        const InputStokMasukScreen(),
+                        Colors.green),
+                    _buildAdminItem(
+                        context,
+                        Icons.history_rounded,
+                        "Log Transaksi Obat",
+                        const LogTransaksiScreen(),
+                        Colors.blueGrey),
                   ]
                 ],
               ],
             ),
           ),
+
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
@@ -150,21 +202,54 @@ class HomeDrawer extends StatelessWidget {
 
   Widget _buildDrawerItem(
       BuildContext context, IconData icon, String title, Widget screen) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: primaryColor, size: 20),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      child: ListTile(
+        visualDensity: const VisualDensity(vertical: -1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        leading: Icon(icon, color: primaryColor, size: 22),
+        title: Text(title,
+            style:
+                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
+        onTap: () {
+          Navigator.pop(context);
+          navigateWithFade(context, screen);
+        },
       ),
-      title: Text(title,
-          style:
-              GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500)),
-      onTap: () {
-        Navigator.pop(context);
-        navigateWithFade(context, screen);
-      },
+    );
+  }
+
+  Widget _buildAdminItem(BuildContext context, IconData icon, String title,
+      Widget screen, Color iconColor) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+              color: iconColor.withOpacity(0.15),
+              blurRadius: 8,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: iconColor, size: 22),
+        ),
+        title: Text(title,
+            style:
+                GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+        onTap: () {
+          Navigator.pop(context);
+          navigateWithFade(context, screen);
+        },
+      ),
     );
   }
 }

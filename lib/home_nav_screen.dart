@@ -24,7 +24,6 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
   final User? _user = FirebaseAuth.instance.currentUser;
   final Color primaryColor = Colors.redAccent;
 
-  // Navigasi dengan animasi fade
   void navigateWithFade(BuildContext context, Widget screen) {
     Navigator.of(context).push(PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 300),
@@ -33,7 +32,6 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
             FadeTransition(opacity: anim, child: child)));
   }
 
-  // Fungsi darurat
   Future<void> _kirimSinyalDarurat(BuildContext context) async {
     if (_user == null) return;
 
@@ -83,7 +81,7 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
     }
   }
 
-  Future<void> _onTabTapped(int index, Map<String, dynamic>? userData) async {
+  void _onTabTapped(int index, Map<String, dynamic>? userData) {
     HapticFeedback.lightImpact();
     if (index == 2 && (userData == null || (userData['nik'] ?? '').isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -104,17 +102,13 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
           .doc(_user!.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Hanya tampilkan loading jika data benar-benar belum ada (startup pertama kali)
+        if (!snapshot.hasData) {
           return const Scaffold(
               body: Center(child: CircularProgressIndicator()));
         }
 
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Scaffold(
-              body: Center(child: Text("Profil tidak ditemukan.")));
-        }
-
-        final userData = snapshot.data!.data() as Map<String, dynamic>;
+        final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
         final bool isAdmin = userData['role'] == 'admin';
 
         final List<Widget> pages = [
@@ -147,16 +141,16 @@ class _HomeNavScreenState extends State<HomeNavScreen> {
               data: userData,
               navigateWithFade: navigateWithFade,
               primaryColor: primaryColor),
+          // IndexedStack menjaga state tab tetap hidup dan tidak loading ulang
           body: IndexedStack(index: _currentIndex, children: pages),
-          floatingActionButton: _buildFAB(isAdmin, userData),
+          floatingActionButton: _buildFAB(isAdmin),
           bottomNavigationBar: _buildBottomNavBar(userData),
         );
       },
     );
   }
 
-  Widget? _buildFAB(bool isAdmin, Map<String, dynamic> userData) {
-    // Memberikan heroTag unik untuk mencegah error Hero Tag
+  Widget? _buildFAB(bool isAdmin) {
     if (isAdmin) {
       return FloatingActionButton.extended(
         heroTag: "fab_admin_input",

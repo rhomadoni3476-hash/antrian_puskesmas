@@ -355,7 +355,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       subtitle: "Tips",
                       themeColor: Colors.blue,
                       content:
-                          "Kesehatan bukan hanya tentang tidak sakit..."))),
+                          "Kesehatan bukan hanya tentang tidak sakit, tapi tentang bagaimana menjaga pola hidup agar selalu bugar dan prima setiap hari, mulailah dari makanan dan minuman yang di konsumsi serta rucin cek kesehatan di puskesmas terdekat"))),
           _buildArticleCard(
               "Vaksinasi",
               "Perisai Kuat Anda Dan Keluarga Anda.",
@@ -367,7 +367,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                       title: "Vaksinasi",
                       subtitle: "Jadwal",
                       themeColor: Colors.green,
-                      content: "Mencegah selalu lebih baik..."))),
+                      content:
+                          "Mencegah selalu lebih baik dari pada mengobati, makanya itu sebelum jatuh sakit alangkah baik nya melakukan vaksinasi sesuai yang di anjurkan di puskesmas"))),
           _buildArticleCard(
               "Manajemen",
               "Seni Mengelola Pikiran Dan Emosi.",
@@ -379,7 +380,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                       title: "Manajemen",
                       subtitle: "Cara",
                       themeColor: Colors.purple,
-                      content: "Dunia mungkin bergerak cepat..."))),
+                      content:
+                          "Jika kita ingin hidup sehat maka dimulai dari pikiran kita yang jernih, pikiran jernih tercipta oleh aktivitas yang bersih juga. Seperti rajin berolahraga, makan makanan sehat, dan jaga pola tidur."))),
         ]));
   }
 

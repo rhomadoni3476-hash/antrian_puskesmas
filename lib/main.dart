@@ -17,28 +17,28 @@ import 'login_pasien_screen.dart';
 import 'notification_service.dart';
 import 'admin_dashboard_screen.dart';
 import 'profile_screen.dart';
+import 'riwayat_antrian_screen.dart';
 
-// Navigator key untuk akses navigasi tanpa context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Logging error global
-  FlutterError.onError = (FlutterErrorDetails details) {
-    debugPrint("Flutter Error: ${details.exceptionAsString()}");
-  };
-
-  // Inisialisasi Firebase & Service
   try {
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
+
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+
     await initializeDateFormatting('id_ID', null);
     if (!kIsWeb) {
       await NotificationService.initialize();
     }
   } catch (e) {
-    debugPrint("Gagal Inisialisasi Firebase: $e");
+    debugPrint("Fatal Error: Gagal Inisialisasi Firebase: $e");
   }
 
   runApp(
@@ -62,8 +62,8 @@ class MyApp extends StatelessWidget {
       builder: (context, themeProvider, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Puskesmas Digital',
           navigatorKey: navigatorKey,
+          title: 'Puskesmas Digital',
           theme: ThemeData(
             useMaterial3: true,
             colorSchemeSeed: Colors.redAccent,
@@ -79,18 +79,14 @@ class MyApp extends StatelessWidget {
           ),
           themeMode:
               themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          initialRoute: '/',
+          // Menggunakan SplashScreen sebagai entry point untuk logika routing otomatis
+          home: const SplashScreen(),
           routes: {
-            '/': (context) => const SplashScreen(),
             '/login': (context) => const LoginPasienScreen(),
             '/home': (context) => const HomeNavScreen(),
             '/admin': (context) => const AdminDashboardScreen(),
             '/profile': (context) => const ProfileScreen(),
-          },
-          onGenerateRoute: (settings) {
-            // Logika fallback jika rute salah
-            return MaterialPageRoute(
-                builder: (context) => const SplashScreen());
+            '/riwayat': (context) => const RiwayatAntrianScreen(),
           },
         );
       },
@@ -112,21 +108,22 @@ class _SplashScreenState extends State<SplashScreen> {
     _checkAuth();
   }
 
+  /// Logika Persistent Login:
+  /// Mengecek apakah user ada, mengambil role, lalu melempar ke halaman yang tepat.
   Future<void> _checkAuth() async {
-    // Memberikan waktu minimal untuk animasi splash
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(seconds: 2)); // Durasi splash screen
     if (!mounted) return;
 
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
       try {
-        // Menggunakan timeout untuk mencegah request gantung
+        // Mengambil data user untuk menentukan navigasi role
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .get()
-            .timeout(const Duration(seconds: 5));
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 8));
 
         if (userDoc.exists && userDoc.data() != null) {
           final data = userDoc.data() as Map<String, dynamic>;
@@ -138,14 +135,17 @@ class _SplashScreenState extends State<SplashScreen> {
             Navigator.pushReplacementNamed(context, '/home');
           }
         } else {
-          Navigator.pushReplacementNamed(context, '/home');
+          // Jika akun tidak ditemukan di Firestore, logout paksa
+          await FirebaseAuth.instance.signOut();
+          Navigator.pushReplacementNamed(context, '/login');
         }
       } catch (e) {
         debugPrint("Error saat cek role: $e");
-        // Jika gagal ambil data, tetap arahkan ke home sebagai fallback aman
+        // Jika gagal ambil data (koneksi), arahkan ke home jika sudah login
         Navigator.pushReplacementNamed(context, '/home');
       }
     } else {
+      // Jika user belum login, ke halaman Login
       Navigator.pushReplacementNamed(context, '/login');
     }
   }
@@ -163,20 +163,15 @@ class _SplashScreenState extends State<SplashScreen> {
               width: 200,
               height: 200,
               repeat: true,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.medical_services,
-                  size: 100,
-                  color: Colors.white),
+              errorBuilder: (_, __, ___) => const Icon(Icons.medical_services,
+                  size: 100, color: Colors.white),
             ),
             const SizedBox(height: 20),
-            Text(
-              "PUSKESMAS DIGITAL",
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text("PUSKESMAS DIGITAL",
+                style: GoogleFonts.poppins(
+                    fontSize: 24,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 40),
             const CircularProgressIndicator(color: Colors.white),
           ],

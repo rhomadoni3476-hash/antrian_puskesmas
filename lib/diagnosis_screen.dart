@@ -34,11 +34,13 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
     super.dispose();
   }
 
-  // --- FUNGSI ASLI (TIDAK DIPANGKAS) ---
   Future<void> _fetchData() async {
     try {
-      final snapshot =
-          await FirebaseFirestore.instance.collection('diseases').get();
+      // Mengambil data dengan opsi cache untuk performa lebih baik
+      final snapshot = await FirebaseFirestore.instance
+          .collection('diseases')
+          .get(const GetOptions(source: Source.serverAndCache));
+
       final list = snapshot.docs
           .map((doc) => PenyakitModel.fromMap(doc.id, doc.data()))
           .toList();
@@ -46,6 +48,7 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
       if (mounted) {
         setState(() {
           _diseaseList = list;
+          // Safety check: Pastikan data gejala tidak null sebelum di-expand
           _allSymptoms = list.expand((d) => d.symptoms.keys).toSet().toList();
           _allSymptoms.sort();
           _filteredSymptoms = _allSymptoms;
@@ -57,13 +60,12 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Gagal memuat data gejala.")),
+          SnackBar(content: Text("Gagal memuat data gejala: ${e.toString()}")),
         );
       }
     }
   }
 
-  // --- FUNGSI ASLI (TIDAK DIPANGKAS) ---
   void _filterSymptoms() {
     final query = _searchController.text.toLowerCase();
     setState(() {
@@ -72,13 +74,13 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
     });
   }
 
-  // --- FUNGSI ASLI (TIDAK DIPANGKAS) ---
   Future<String> _tentukanPoli(String namaPenyakit) async {
     try {
       final snapshot =
           await FirebaseFirestore.instance.collection('data_poli').get();
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        // Safety check untuk list penyakit
         List<dynamic> penyakitList = data['daftar_penyakit'] ?? [];
         if (penyakitList.contains(namaPenyakit)) {
           return data['nama_poli'] ?? "Poli Umum";
@@ -90,7 +92,6 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
     return "Poli Umum";
   }
 
-  // --- FUNGSI ASLI (TIDAK DIPANGKAS) ---
   void _calculateDiagnosis(List<PenyakitModel> diseaseList) async {
     FocusScope.of(context).unfocus();
 
@@ -101,7 +102,9 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
       double cfCombined = 0.0;
       disease.symptoms.forEach((symptom, weight) {
         if (userSymptoms.containsKey(symptom)) {
-          double cfGejala = weight * userSymptoms[symptom]!;
+          // Safety check: pastikan value tidak null
+          double userValue = userSymptoms[symptom] ?? 0.0;
+          double cfGejala = weight * userValue;
           cfCombined = (cfCombined == 0)
               ? cfGejala
               : cfCombined + (cfGejala * (1 - cfCombined));
@@ -147,7 +150,6 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
     }
   }
 
-  // --- TAMBAHAN UI/UX (TIDAK MENGHILANGKAN FUNGSI LAMA) ---
   void _showConfidenceDialog(String symptom) {
     showDialog(
       context: context,
@@ -191,39 +193,41 @@ class _DiagnosisScreenState extends State<DiagnosisScreen> {
               children: [
                 _buildHeader(),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 2.8,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
-                    itemCount: _filteredSymptoms.length,
-                    itemBuilder: (context, index) {
-                      final s = _filteredSymptoms[index];
-                      final isSelected = userSymptoms.containsKey(s);
-                      return FilterChip(
-                        label: Text(s,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.blueGrey)),
-                        selected: isSelected,
-                        selectedColor: Colors.redAccent,
-                        backgroundColor: Colors.white,
-                        onSelected: (val) {
-                          if (val) {
-                            _showConfidenceDialog(s);
-                          } else {
-                            setState(() => userSymptoms.remove(s));
-                          }
-                        },
-                      );
-                    },
-                  ),
+                  child: _filteredSymptoms.isEmpty
+                      ? const Center(child: Text("Gejala tidak ditemukan"))
+                      : GridView.builder(
+                          padding: const EdgeInsets.all(20),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 2.8,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: _filteredSymptoms.length,
+                          itemBuilder: (context, index) {
+                            final s = _filteredSymptoms[index];
+                            final isSelected = userSymptoms.containsKey(s);
+                            return FilterChip(
+                              label: Text(s,
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.blueGrey)),
+                              selected: isSelected,
+                              selectedColor: Colors.redAccent,
+                              backgroundColor: Colors.white,
+                              onSelected: (val) {
+                                if (val) {
+                                  _showConfidenceDialog(s);
+                                } else {
+                                  setState(() => userSymptoms.remove(s));
+                                }
+                              },
+                            );
+                          },
+                        ),
                 ),
                 _buildFooter(),
               ],

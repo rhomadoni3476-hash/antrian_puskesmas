@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from datetime import datetime
 import os
 import json
 import firebase_admin
@@ -47,7 +48,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token tidak valid: {str(e)}")
 
-# Dependency untuk Cek Admin
 def verify_admin(user_data: dict = Depends(get_current_user)):
     db = firestore.client()
     user_ref = db.collection("users").document(user_data['uid']).get()
@@ -59,7 +59,7 @@ def verify_admin(user_data: dict = Depends(get_current_user)):
 
 # --- Model Data ---
 class RekamMedis(BaseModel):
-    nik: str
+    nik: str = Field(..., min_length=16, max_length=16)
     nama_pasien: str
     keluhan: str
     status: str
@@ -73,7 +73,7 @@ class UpdateStatusRequest(BaseModel):
 def read_root():
     return {"message": "Puskesmas Digital API is Running Securely"}
 
-# 1. Statistik SUS (Bisa diakses user terautentikasi)
+# 1. Statistik
 @app.get("/api/sus-statistics")
 def get_sus_statistics(user_data: dict = Depends(get_current_user)):
     db = firestore.client()
@@ -85,40 +85,44 @@ def get_sus_statistics(user_data: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 2. Daftar Rekam Medis (Hanya Admin)
+# 2. Daftar Rekam Medis (Admin Only)
 @app.get("/daftar-rekam-medis")
 def get_daftar_rekam_medis(admin: dict = Depends(verify_admin)):
     db = firestore.client()
     try:
-        docs = db.collection("rekam_medis").stream()
+        docs = db.collection("rekam_medis").order_by("created_at", direction=firestore.Query.DESCENDING).stream()
         return [{"id": d.id, **d.to_dict()} for d in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 3. Tambah Rekam Medis (Hanya Admin)
+# 3. Tambah Rekam Medis (Pasien & Admin)
 @app.post("/tambah-rekam-medis")
-def tambah_rekam_medis(data: RekamMedis, admin: dict = Depends(verify_admin)):
+def tambah_rekam_medis(data: RekamMedis, user_data: dict = Depends(get_current_user)):
     db = firestore.client()
     try:
-        new_doc = db.collection("rekam_medis").add(data.dict())
+        rekam_medis_dict = data.dict()
+        rekam_medis_dict['user_id'] = user_data['uid']
+        rekam_medis_dict['created_at'] = datetime.now().isoformat() # Menambahkan timestamp
+        
+        new_doc = db.collection("rekam_medis").add(rekam_medis_dict)
         return {"status": "success", "id": new_doc[1].id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 4. Update Status (Hanya Admin)
+# 4. Update Status (Admin Only)
 @app.put("/update-status/{id}")
 def update_status(id: str, request: UpdateStatusRequest, admin: dict = Depends(verify_admin)):
     db = firestore.client()
     doc_ref = db.collection("rekam_medis").document(id)
     if not doc_ref.get().exists:
-        raise HTTPException(status_code=404, detail="Data rekam medis tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Data tidak ditemukan")
     try:
         doc_ref.update({"status": request.status})
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal update: {str(e)}")
 
-# 5. Hapus Rekam Medis (Hanya Admin)
+# 5. Hapus Rekam Medis (Admin Only)
 @app.delete("/hapus-rekam-medis/{id}")
 def hapus_rekam_medis(id: str, admin: dict = Depends(verify_admin)):
     db = firestore.client()
